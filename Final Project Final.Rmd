@@ -1,0 +1,1996 @@
+---
+title: "Ryan_Richardson_Final_Projecct"
+output:
+  word_document: default
+  pdf_document: default
+date: "Q1 2023"
+always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning=FALSE}
+#Libraries:
+library(tidyverse)
+library(caret)
+library(kernlab)
+library(randomForest)
+library(e1071)
+library(knitr)
+library(MLmetrics)
+library(ggplot2)
+library(arules)
+library(arulesViz)
+```
+# Introduction 
+
+Poker is a popular card game with an estimated 76 Billion dollar market in 2021 [1](https://www.custommarketinsights.com/report/online-poker-market/). The goal of the game is to wager against other players on having the best combination of cards. Poker wagering includes actions such as betting, raising, calling, folding and bluffing. Bluffing is a strategy successful poker players engage in as an act of deception aimed at making your weak hand look stronger than it is with the intent of getting your opponent to fold. The goal of bluffing is to win irrespective of the hand you have been dealt. Can computer science predict and provide insights on how to improve or detect bluffing?
+
+Previous reports have studied bluffing by reviewing body language, and facial imagery for “tells” on lying. Attempts included taking thermal images of players faces, scrapping face data from televised poker games, and sensors that detect moisture in players hands. Although these studies show promising results, the data from actually tracking the game play specifically how players are betting and reacting can provide deep insights. This data can be leveraged to provide statistics informing players of appropriate strategies.
+
+This exercise analyzes historic poker games for bluffing trends and winning strategies by applying data science models. The data set employed is a record of the games Facebook's AI (Pluribus)[2](Kevinwang.com) and odds data[3](betandbeat.com). This data set is unique for having all players hands available and tracking of wagering actions. Facebook's Bot Pluribus was the first AI player to beat humans in multiplayer, Texas Holdem no limit poker. By analyzing this data, can one understand the ideal time to bluff or improve their game play? Or can you gain insights on how to detect the likelihood of whether or not someone else is bluffing and call them on their bluff? Utilizing this historical data to answer these questions can be leveraged to improve a players chance of winning.
+
+# Data Preview and Initial Preparation
+
+```{r, set.seed(123)}
+knitr::opts_chunk$set(cache = T)
+summary(read.csv("/Users/ryanrichardson/Documents/Syr/Applied Machine Learning/Project/P-HandsX3.csv"))
+#C:/Users/beaud/Downloads/syr/IST707/P-HandsX3.csv
+```
+The dataset is parsed from a text log format and hand data cleaned up for pulling in the correct odds. Theses odds (<=.20) are used to create a bluff column for each game in order to answer questions about the data. Unwanted characters were removed. Columns that were not needed to answer the business questions were dropped. Data was also checked for any unnecessary data, irregular data or outliers. Some game IDs are duplicated but the reasoning is those games have multiple winners. Description of the fields or vectors is below.
+
+<table class=MsoTable15Grid2Accent1 border=1 cellspacing=0 cellpadding=0
+ width=218 style='width:163.2pt;border-collapse:collapse;border:none'>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border:none;border-bottom:
+  solid #8EAADB 1.5pt;background:white;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>Game</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.5pt;background:white;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>ID</span></b></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>Winner</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Name</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>B.Blinder</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Name</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>BB=W</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Big Blinder won?</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>Bluff?</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Did game have a bluff</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>Pluribus Win?</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Did Pluribus Win</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>R.W.Odds</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Rounded winners odd</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>Pot</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Size of the pot</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>PreFold</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Number of folds before flop</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>AnyBets</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>game had 1+ bets</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>PBetsRaises</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'># of Pluribus bet/raises</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>OBetsRaises</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'># of Pluribus bet/raises</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>GBetsRaises</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'># of Gogo bet/raises</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>MrWBetsRaises</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'># of Mr. White bet/raises</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>BuBetsRaises</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'># of Budd bet/raises</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>EBetsRaises</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'># of Eddie bet/raises</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>BIBetsRaises</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'># of Bill bet/raises</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>Flop</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Hand</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>Turn</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Hand</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>River</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Hand</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>Has Flop</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Game had flop</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>Pluribus</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Pluribus Hand</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>Bill</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Hand</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>Eddie</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Hand</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>Budd</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Hand</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>Gogo</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Hand</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>MrWhite</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Hand</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>Modds</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Odds of Mr Whites hand winning</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>Godds</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Odds</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>BUodds</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Odds</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>Eodds</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Odds</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>BLodds</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Odds</span></p>
+  </td>
+ </tr>
+ <tr style='height:14.75pt'>
+  <td width=85 nowrap valign=top style='width:63.4pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>Podds</span></b></p>
+  </td>
+  <td width=133 nowrap valign=top style='width:99.8pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Odds</span></p>
+  </td>
+ </tr>
+</table>
+
+# Data Preparation
+```{r}
+df <- read.csv("/Users/ryanrichardson/Documents/Syr/Applied Machine Learning/Project/P-HandsX3.csv")
+#C:/Users/beaud/Downloads/syr/IST707/P-HandsX3.csv
+df <- df %>% 
+  rename(
+    HasBlind = `B.Blinder`,
+    BlinderWin = `BB.W`,
+    WinnersOdds = `R.W.Odds`,
+    Bluff = `Bluff.`,
+    HasFlop = `Has.Flop`,
+    PWin = `Pluribus.Win.`,
+    BiBetsRaises = `BIBetsRaises`,
+    MrWOdds = `Modds`,
+    GOdds = `Godds`,
+    EOdds = `Eodds`,
+    POdds = `Podds`,
+    BuOdds = `BUodds`,
+    BiOdds = `BLodds`,
+    )
+df$HasBlind <- as.factor(df$HasBlind)
+df$BlinderWin <- as.factor(df$BlinderWin)
+df$Bluff <- as.factor(df$Bluff)
+df$PWin <- as.factor(df$PWin)
+df$AnyBets <- as.factor(df$AnyBets)
+df$PBetsRaises <- as.factor(df$PBetsRaises)
+df$PBetsRaises <- ordered(df$PBetsRaises, levels = c(0,1,2,3,4))
+df$OBetsRaises <- as.factor(df$OBetsRaises)
+df$OBetsRaises <- ordered(df$OBetsRaises, levels = c(0,1,2,3,4,5,6))
+df$GBetsRaises <- as.factor(df$GBetsRaises)
+df$GBetsRaises <- ordered(df$GBetsRaises, levels = c(0,1,2,3,4,5))
+df$MrWBetsRaises <- as.factor(df$MrWBetsRaises)
+df$MrWBetsRaises <- ordered(df$MrWBetsRaises, levels = c(0,1,2,3))
+df$BuBetsRaises <- as.factor(df$BuBetsRaises)
+df$BuBetsRaises <- ordered(df$BuBetsRaises, levels = c(0,1,2,3,4))
+df$EBetsRaises <- as.factor(df$EBetsRaises)
+df$EBetsRaises <- ordered(df$EBetsRaises, levels = c(0,1,2,3))
+df$BiBetsRaises <- as.factor(df$BiBetsRaises)
+df$BiBetsRaises <- ordered(df$BiBetsRaises, levels = c(0,1,2,3,4))
+df$HasFlop <- as.factor(df$HasFlop)
+df <- df %>% mutate_if(is.character,as.factor)
+
+
+summary(df)
+```
+
+```{r}
+PBluff <- c()
+for(i in 1:nrow(df)) {
+  if(df[i,]$POdds <= .2 & df[i,]$PBetsRaises != 0) {
+    PBluff <- append(PBluff, 1)
+  } else {
+    PBluff <- append(PBluff, 0)
+  }
+}
+df$PBluff <- as.factor(PBluff)
+```
+
+```{r}
+GBluff <- c()
+for(i in 1:nrow(df)) {
+  if(df[i,]$GOdds <= .2 & df[i,]$GBetsRaises != 0) {
+    GBluff <- append(GBluff, 1)
+  } else {
+    GBluff <- append(GBluff, 0)
+  }
+}
+df$GBluff <- as.factor(GBluff)
+```
+
+```{r}
+MrWBluff <- c()
+for(i in 1:nrow(df)) {
+  if(df[i,]$MrWOdds <= .2 & df[i,]$MrWBetsRaises != 0) {
+    MrWBluff <- append(MrWBluff, 1)
+  } else {
+    MrWBluff <- append(MrWBluff, 0)
+  }
+}
+df$MrWBluff <- as.factor(MrWBluff)
+```
+
+```{r}
+BuBluff <- c()
+for(i in 1:nrow(df)) {
+  if(df[i,]$BuOdds <= .2 & df[i,]$BuBetsRaises != 0) {
+    BuBluff <- append(BuBluff, 1)
+  } else {
+    BuBluff <- append(BuBluff, 0)
+  }
+}
+df$BuBluff <- as.factor(BuBluff)
+```
+
+```{r}
+EBluff <- c()
+for(i in 1:nrow(df)) {
+  if(df[i,]$EOdds <= .2 & df[i,]$EBetsRaises != 0) {
+    EBluff <- append(EBluff, 1)
+  } else {
+    EBluff <- append(EBluff, 0)
+  }
+}
+df$EBluff <- as.factor(EBluff)
+```
+
+```{r}
+BiBluff <- c()
+for(i in 1:nrow(df)) {
+  if(df[i,]$BiOdds <= .2 & df[i,]$BiBetsRaises != 0) {
+    BiBluff <- append(BiBluff, 1)
+  } else {
+    BiBluff <- append(BiBluff, 0)
+  }
+}
+df$BiBluff <- as.factor(BiBluff)
+```
+
+```{r}
+PBluffWin <- c()
+for(i in 1:nrow(df)) {
+  if(df[i,]$PBluff == 1 & df[i,]$Winner == 'Pluribus') {
+    PBluffWin <- append(PBluffWin, 1)
+  } else {
+    PBluffWin <- append(PBluffWin, 0)
+  }
+}
+df$PBluffWin <- as.factor(PBluffWin)
+```
+
+```{r}
+GBluffWin <- c()
+for(i in 1:nrow(df)) {
+  if(df[i,]$GBluff == 1 & df[i,]$Winner == 'Gogo') {
+    GBluffWin <- append(GBluffWin, 1)
+  } else {
+    GBluffWin <- append(GBluffWin, 0)
+  }
+}
+df$GBluffWin <- as.factor(GBluffWin)
+```
+
+```{r}
+MrWBluffWin <- c()
+for(i in 1:nrow(df)) {
+  if(df[i,]$MrWBluff == 1 & df[i,]$Winner == 'MrWhite') {
+    MrWBluffWin <- append(MrWBluffWin, 1)
+  } else {
+    MrWBluffWin <- append(MrWBluffWin, 0)
+  }
+}
+df$MrWBluffWin <- as.factor(MrWBluffWin)
+```
+
+```{r}
+BuBluffWin <- c()
+for(i in 1:nrow(df)) {
+  if(df[i,]$BuBluff == 1 & df[i,]$Winner == 'Budd') {
+    BuBluffWin <- append(BuBluffWin, 1)
+  } else {
+    BuBluffWin <- append(BuBluffWin, 0)
+  }
+}
+df$BuBluffWin <- as.factor(BuBluffWin)
+```
+
+```{r}
+EBluffWin <- c()
+for(i in 1:nrow(df)) {
+  if(df[i,]$EBluff == 1 & df[i,]$Winner == 'Eddie') {
+    EBluffWin <- append(EBluffWin, 1)
+  } else {
+    EBluffWin <- append(EBluffWin, 0)
+  }
+}
+df$EBluffWin <- as.factor(EBluffWin)
+```
+
+```{r}
+BiBluffWin <- c()
+for(i in 1:nrow(df)) {
+  if(df[i,]$BiBluff == 1 & df[i,]$Winner == 'Bill') {
+    BiBluffWin <- append(BiBluffWin, 1)
+  } else {
+    BiBluffWin <- append(BiBluffWin, 0)
+  }
+}
+df$BiBluffWin <- as.factor(BiBluffWin)
+```
+
+```{r}
+AnyBluffWin <- c()
+
+zeros <- rep(0, 6)
+
+for (i in 1:nrow(df)) {
+  if (all(df[i,40:45] == zeros)) {
+    AnyBluffWin <- append(AnyBluffWin, 0)
+  } else {
+    AnyBluffWin <- append(AnyBluffWin, 1)
+  }
+}
+df$AnyBluffWin <- as.factor(AnyBluffWin)
+```
+
+```{r}
+PBluffLoss <- c()
+for(i in 1:nrow(df)) {
+  if(df[i,]$PBluff == 1 & df[i,]$Winner != 'Pluribus') {
+    PBluffLoss <- append(PBluffLoss, 1)
+  } else {
+    PBluffLoss <- append(PBluffLoss, 0)
+  }
+}
+df$PBluffLoss <- as.factor(PBluffLoss)
+```
+
+```{r}
+GBluffLoss <- c()
+for(i in 1:nrow(df)) {
+  if(df[i,]$GBluff == 1 & df[i,]$Winner != 'Gogo') {
+    GBluffLoss <- append(GBluffLoss, 1)
+  } else {
+    GBluffLoss <- append(GBluffLoss, 0)
+  }
+}
+df$GBluffLoss <- as.factor(GBluffLoss)
+```
+
+```{r}
+MrWBluffLoss <- c()
+for(i in 1:nrow(df)) {
+  if(df[i,]$MrWBluff == 1 & df[i,]$Winner != 'MrWhite') {
+    MrWBluffLoss <- append(MrWBluffLoss, 1)
+  } else {
+    MrWBluffLoss <- append(MrWBluffLoss, 0)
+  }
+}
+df$MrWBluffLoss <- as.factor(MrWBluffLoss)
+```
+
+```{r}
+BuBluffLoss <- c()
+for(i in 1:nrow(df)) {
+  if(df[i,]$BuBluff == 1 & df[i,]$Winner != 'Budd') {
+    BuBluffLoss <- append(BuBluffLoss, 1)
+  } else {
+    BuBluffLoss <- append(BuBluffLoss, 0)
+  }
+}
+df$BuBluffLoss <- as.factor(BuBluffLoss)
+```
+
+```{r}
+EBluffLoss <- c()
+for(i in 1:nrow(df)) {
+  if(df[i,]$EBluff == 1 & df[i,]$Winner != 'Eddie') {
+    EBluffLoss <- append(EBluffLoss, 1)
+  } else {
+    EBluffLoss <- append(EBluffLoss, 0)
+  }
+}
+df$EBluffLoss <- as.factor(EBluffLoss)
+```
+
+```{r}
+BiBluffLoss <- c()
+for(i in 1:nrow(df)) {
+  if(df[i,]$BiBluff == 1 & df[i,]$Winner != 'Bill') {
+    BiBluffLoss <- append(BiBluffLoss, 1)
+  } else {
+    BiBluffLoss <- append(BiBluffLoss, 0)
+  }
+}
+df$BiBluffLoss <- as.factor(BiBluffLoss)
+```
+
+```{r}
+AnyBluffLoss <- c()
+
+for (i in 1:nrow(df)) {
+  if (all(df[i,47:52] == zeros)) {
+    AnyBluffLoss <- append(AnyBluffLoss, 0)
+  } else {
+    AnyBluffLoss <- append(AnyBluffLoss, 1)
+  }
+}
+df$AnyBluffLoss <- as.factor(AnyBluffLoss)
+```
+
+```{r}
+df <- df %>% 
+  group_by(Winner) %>% 
+  mutate(CumulativeEarnings = cumsum(Pot))
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Cleaning out unnecessary list variables 
+rm(AnyBluffLoss, AnyBluffWin, BiBluff, BiBluffLoss, BiBluffWin, BuBluff, BuBluffLoss, BuBluffWin, EBluff, EBluffLoss, EBluffWin, GBluff, GBluffLoss, GBluffWin, i, MrWBluff, MrWBluffLoss, MrWBluffWin, PBluff, PBluffLoss, PBluffWin, zeros)
+```
+
+```{r}
+print(head(df))
+```
+
+```{r}
+print(summary(df))
+```
+In order to prepare the data, all string columns were converted to factors to potentially identify patterns and enable potential analysis by different types of hands. Boolean columns were also converted to factors to enable functionality with certain algorithms that will be used later. Additionally, calculated columns were created to identify who bluffed during particularly games and whether or not that bluff would lead to the player winning the hand. Similarly, lost bluffs were also added which will enable analysis on players that are not as good at bluffing. Finally, a new column of cumulative winnings for each player across hands was also added. With this preparation, some high level observations can be identified. Generally, all players, including Pluribus, are conservative with their bluffs. Interestingly, three game ID's are duplicated - after review, this is due to the how the data stores hands where the pot is split. The data is stored in multiple rows with the same game id but the outcome (ie, the pot payout) is different to capture how it is paid to multiple players. It is now appropriate to start visualizing the data for Exploratory Data Analysis.
+
+# Exploratory Data Analysis
+
+```{r}
+winCount <- df %>% count(Winner)
+ggplot(winCount, aes(x = Winner, y = n)) + geom_col(fill = 'limegreen') + labs(x = 'Winner', y = 'Number of Wins', title = "Count of Hands Won by Player") + theme_dark()
+```
+Budd and MrWhite notably lag the rest of the group in wins, while Eddie and Pluribus stand in the middle. Bill and Gogo win the most hands. That said, number of hands won doesn't necessarily indicate who actually wins the game: 
+
+```{r}
+potWinnings <- aggregate(Pot ~ Winner, data = df, FUN = function(x) sum(x))
+ggplot(potWinnings, aes(x = Winner, y = Pot)) + geom_col(fill = 'limegreen') + labs(x = "Player", y = 'Total Winnings', title = "Total Winnings By Player") + theme_dark()
+```
+
+Even though Budd does not win as many hands, the hands he wins really matter. Bill and Gogo remain solid performers while Eddie and MrWhite still lag. Pluribus has the worst return on hands won, only outperforming MrWhite for total earnings.
+
+```{r}
+bluffCount <- df %>% count(Bluff)
+ggplot(bluffCount, aes(x = Bluff, y = n)) + geom_col(fill = 'limegreen') + labs(x = 'Bluff?', y = 'Number of Bluffs', title = "Count of Bluffs Across All Games") + theme_dark()
+```
+
+Across all of the hands, relatively few games involved someone bluffing.
+
+```{r}
+bluffedGames <- df %>% filter(Bluff == 1)
+bluffWinCount <- bluffedGames %>% count(AnyBluffWin)
+ggplot(bluffWinCount, aes(x = AnyBluffWin, y = n)) + geom_col(fill = 'limegreen') + labs(x = 'Bluff Won?', y = 'Count of Games', title = "Count of Bluff Wins Across Bluffed Games") + theme_dark()
+```
+However, even though the players were conservative in their bluffs, they tended to win when they did bluff.
+
+```{r}
+bluffCountsByPlayer <- gather(df[,34:39], key = "Player", value = "Bluffs")
+
+aggBluffCounts <- aggregate(Bluffs ~ Player, data = bluffCountsByPlayer, FUN = function(x) sum(as.numeric(x == 1)))
+
+nameList <- c('Bill', 'Budd', 'Eddie', 'Gogo', 'MrWhite', 'Pluribus')
+
+aggBluffCounts$Player <- nameList
+
+ggplot(aggBluffCounts, aes(x = Player, y = Bluffs)) + geom_col(fill = 'limegreen') + labs(x = "Player", y = 'Count of Bluffs', title = "Who Likes to Bluff?") + theme_dark()
+```
+
+
+```{r}
+bluffWinnerList <- gather(df[,40:45], key = "Player", value = "nWon")
+
+bluffWinnerCount <- aggregate(nWon ~ Player, data = bluffWinnerList, FUN = function(x) sum(as.numeric(x == 1)))
+
+bluffWinnerCount$Player <- nameList
+
+ggplot(bluffWinnerCount, aes(x = Player, y = nWon)) + geom_col(fill = 'limegreen') + labs(x = "Player", y = 'Count of Wins', title = "Count of Won Bluffs By Player Across Bluffed Games") + theme_dark()
+```
+
+Gogo and Bill won the most bluffs by a fair margin. The other three players lagged substantially, though Pluribus and MrWhite bluffed slightly more often and calling it a uniform distribution would be a stretch. As observed above however, hands won does not necessarily indicate who performs the best on their bluffing:
+
+```{r}
+bluffPotWinnings <- aggregate(Pot ~ Winner, data = bluffedGames, FUN = function(x) sum(x))
+ggplot(bluffPotWinnings, aes(x = Winner, y = Pot)) + geom_col(fill = 'limegreen') + labs(x = "Player", y = 'Total Winnings from Bluffs', title = "Who Gets the Most Return on Their Bluffs?") + theme_dark()
+```
+Here, it can be observed that Eddie excels at getting good return when he does bluff, even though he is one of the rarer bluffers. Gogo also gets excellent return for her bluffs, which might be expected given her bluff frequency compared to the other players. Bill does not do nearly as well even though he bluffs almost as often as Gogo. Bluff performance can also be thought of in contrast to its negative:
+
+```{r}
+bluffLoserList <- gather(df[,47:52], key = "Player", value = "nLost")
+
+bluffLoserCount <- aggregate(nLost ~ Player, data = bluffLoserList, FUN = function(x) sum(as.numeric(x == 1)))
+
+bluffLoserCount$Player <- nameList
+
+ggplot(bluffLoserCount, aes(x = Player, y = nLost)) + geom_col(fill = 'limegreen') + labs(x = "Player", y = 'Count of Losses', title = "Count of Lost Bluffs By Player Across Bluffed Games") + theme_dark()
+```
+
+Even though Gogo bluffs a lot and wins alot, she also loses the most bluffs. MrWhite's bluff performance by every metric so far remains dismal. Pluribus and Bill rarely lose their bluffs. This can also be visualized as a ratio:
+
+```{r}
+bluffRatio <- inner_join(bluffWinnerCount, bluffLoserCount, by = "Player")
+
+# calculate win ratio
+bluffRatio <- bluffRatio %>% 
+  mutate(total = nWon + nLost,
+         win_ratio = nWon / total)
+
+# create bar chart
+ggplot(bluffRatio, aes(x = Player, y = win_ratio)) + geom_bar(stat = "identity", fill = 'limegreen') + ggtitle("Who is the Best Liar?") + ylab("Bluff Win Ratio") + xlab("Player") + theme_dark()
+```
+
+Budd, Eddie, and Gogo are relatively uniform in their bluff win ratio. MrWhite's performance continues to appear lackluster. Bill and Pluribus have exceptionally strong ratios, winning more than 80% of their bluffs.
+
+```{r}
+ggplot(df, aes(x = Bluff, y = WinnersOdds)) + geom_boxplot() + 
+  labs(x = 'Bluff', y = "Odds for the Winner to Win", title = "When Do Player's Bluff?")
+```
+
+It should be noted that this is a slightly misleading plot. There is a hard cutoff for bluffs at 20% odds because anything greater than 20% was not mathematically considered a bluff. This naturally explains the higher odds that cannot be seen in bluffed hands. Additionally, odds for winning do not drop below 10%. That said, it is interesting to note that the median bluff appears to be around 18% odds or so. Players appear to prefer bluffing when there is still some path to winning.
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+rm(bluffPotWinnings, bluffCount, bluffLoserCount, bluffLoserList, bluffPotWinnings, bluffRatio, bluffWinCount, bluffWinnerCount, bluffWinCount, potWinnings, winCount, bluffCountsByPlayer, aggBluffCounts, nameList, bluffWinnerList, bluffedGames)
+```
+
+# Correlation Analysis
+Here with correlation the exercise looks at what vectors have positive and negative correlation to bluffing. A correlation matrix could be useful for players wanting to know what actions lean towards or against bluffing. 
+```{r}
+#New df for alternate workflow
+df2 <- read_csv("/Users/ryanrichardson/Documents/Syr/Applied Machine Learning/Project/P-HandsX3.csv")
+```
+
+```{r}
+bluffSet <- data.frame(bluff=df2$`Bluff?`,
+              BBwin=scale(df2$`BB=W`),
+              preFolds=scale(df2$PreFolds),
+              Pot=scale(df2$Pot), 
+              Bets=(scale(df2$PBetsRaises + df2$OBetsRaises)), 
+              Flop=scale(df2$`Has Flop`),
+              PBR=scale(df2$PBetsRaises),
+              GBR=scale(df2$GBetsRaises),
+              MrWBR=scale(df2$MrWBetsRaises),
+              BuBR=scale(df2$BuBetsRaises),
+              EBR=scale(df2$EBetsRaises),
+              BIBR=scale(df2$BIBetsRaises),
+              Modds=df2$Modds,
+              Godds=df2$Godds,
+              BUodds=df2$BUodds,
+              Eodds=df2$Eodds,
+              BLodds=df2$BLodds,
+              Podds=df2$Podds
+              ) #add flop details?
+
+res <- cor(bluffSet)
+round(res, 2)
+```
+
+Looking at the matrix above, Bluff has a positive correlation to BBwin, preFolds and PBR indicating these actions lead toward a bluff winning the game. The rest have negative correlations. Bill betting or raising has a most negative correlation to a bluff win, he may bluff less but he also had the highest correlation to the Pot size meaning he is a big better. 
+
+# Association Rules
+
+Association rules can provide a set of conditions that led to a successful bluff. First to filter rules as below to Bluff=1. Also by setting Bets=1 it can filter out rules without bets that are less meaningful. 
+```{r warning=FALSE}
+#data set for building association rules
+df3 <- data.frame(bluff=as.factor(df2$`Bluff?`),
+                  pWin=as.factor(df2$`Pluribus Win?`),
+                  Win=as.factor(df2$Winner),
+                  Bets=as.factor(df2$AnyBets),
+                  Pot=df2$Pot, 
+                  PBR=as.factor(df2$PBetsRaises), 
+                  OBR=as.factor(df2$OBetsRaises), 
+                  GBR=as.factor(df2$GBetsRaises),
+                  MBR=as.factor(df2$MrWBetsRaises),
+                  BuBR=as.factor(df2$BuBetsRaises),
+                  EBR=as.factor(df2$EBetsRaises),
+                  BiBR=as.factor(df2$BIBetsRaises),
+                  Flop=as.factor(df2$`Has Flop`),
+                  Modds=df2$Modds,
+                  Godds=df2$Godds,
+                  BUodds=df2$BUodds,
+                  Eodds=df2$Eodds,
+                  BLodds=df2$BLodds,
+                  Podds=df2$Podds)
+#Apriori command builds rules with bluff hand wining the game
+myRules1 = apriori(data=df3, appearance = list(default="lhs", rhs="bluff=1"), parameter = list(supp = 0.001, conf = 0.6, maxlen = 4), control = list(verbose=F))
+#filter for rules with bets
+myRules1 <- subset(myRules1, lhs %in% c("Bets=1"))
+myRules1
+myRules1 <- sort(myRules1, decreasing=TRUE,by='support')
+#Rules with high support:
+inspect(myRules1[1:10])
+```
+This returns 83 rules of which are dominated with rules having odds. It solidifies Gogo, then Bill, then Pluribus as the Buffers with highest support scores. Next, Lets filter out the odds data to see more interesting Bluffing associations.
+
+
+```{r warning=FALSE}
+#data set for building association rules
+df3 <- data.frame(bluff=as.factor(df2$`Bluff?`),
+                  pWin=as.factor(df2$`Pluribus Win?`),
+                  Win=as.factor(df2$Winner),
+                  Bets=as.factor(df2$AnyBets),
+                  Pot=df2$Pot, 
+                  PBR=as.factor(df2$PBetsRaises), 
+                  OBR=as.factor(df2$OBetsRaises), 
+                  GBR=as.factor(df2$GBetsRaises),
+                  MBR=as.factor(df2$MrWBetsRaises),
+                  BuBR=as.factor(df2$BuBetsRaises),
+                  EBR=as.factor(df2$EBetsRaises),
+                  BiBR=as.factor(df2$BIBetsRaises),
+                  Flop=as.factor(df2$`Has Flop`)
+                  #Modds=df$Modds,
+                  #Godds=df$Godds,
+                  #BUodds=df$BUodds,
+                  #Eodds=df$Eodds,
+                  #BLodds=df$BLodds,
+                  #Podds=df$Podds)
+)
+#Apriori command builds rules with bluff hand wining the game
+myRules1 = apriori(data=df3, appearance = list(default="lhs", rhs="bluff=1"), parameter = list(supp = 0.001, conf = 0.6, maxlen = 4), control = list(verbose=F))
+myRules1
+plot(myRules1, engine = "htmlwidget")
+myRules1 <- subset(myRules1, lhs %in% c("Bets=1"))
+myRules1
+myRules1 <- sort(myRules1, decreasing=TRUE,by='support')
+#Rules with high support:
+inspect(myRules1[1:10])
+myRules1 <- sort(myRules1, decreasing=TRUE,by='confidence')
+#Rules with high confidence:
+inspect(myRules1[1:10])
+myRules1 <- sort(myRules1, decreasing=TRUE,by='lift')
+#Rules with high lift:
+inspect(myRules1[1:10])
+plot(myRules1, engine = "htmlwidget")
+
+```
+Above show two rule set plots first with 711 rules and then down to the 39 rules after filtering for games with bets. The rules with the most lift also have high confidence (top area are redder). Lift indicates how predictable the confidence is, meaning they are more reliable rules. These are good indicators of bluffing, players can identify and utilize to either counter bet or bluff themselves. If you zoom into the high confidence rules you'll see some interesting associations. When pWin=0,and PBR=3 yet the game was a bluff win meaning players are successfully bluffing against Pluribus here. Other rules that raise up include people betting against Mr. White (MBR=3 OBR=3) and Budd betting against Bill (BuBR=1 BiBR=2).
+
+# Modeling
+Here the exercise uses SVM and Random Forest modeling techniques to predict and analyze bluffing patterns. First SVM modelling.
+
+## SVM
+
+The first model will predict if the game will be won with a bluff hand using all data available. 
+```{r}
+bluffSet$bluff <- as.factor(bluffSet$bluff)
+#set training and test data sets
+set.seed(10)
+trainList <- createDataPartition(y=bluffSet$bluff,p=.70, list=FALSE) #344-147 int 1:344
+trainSet <- bluffSet[trainList,]
+testSet <- bluffSet[-trainList,]
+#k folding
+# value of K equal to 10
+train_control <- trainControl(method = "cv",number = 10)
+#build svm radial model to predict if the game has a bluff. uses the carets train command with available models here :https://rdrr.io/cran/caret/man/models.html
+model.ksvm <- train(bluff~., data=trainSet, method="svmRadial", 
+                    preProc=c("center","scale"), 
+                    trControl = train_control
+                    )
+svmPred <- predict(model.ksvm, newdata=testSet, type = "raw")
+cm<-confusionMatrix(svmPred,reference = testSet$bluff)
+cm
+```
+
+The accuracy of the first model comes out to 85% (less with tuning) which means when using all 17 fields in the bluffset the model can predict that the poker game would be won with a Bluff (Winning hand has <= 20% odds of winning). #85% accuracy sounds quite accurate but a player in a game won't know everything in our dataset especially odds of others player hands.
+
+Next the exercise will build a model with what a player might know from watching the table, and after rerunning models this model below performed the best. This model specifically looks at a players hand and how many bets are being made. Adding other vectors actually reduced accuracy. Below we see a model based on Gogo's hand and how many bets they see.
+
+```{r}
+train_control <- trainControl(method = "cv",number = 2)
+model.ksvm2 <- train(bluff~Godds+Bets, data=trainSet, method="svmRadial", 
+                     preProc=c("center","scale"), 
+                     trControl = train_control,
+                     tuneGrid = expand.grid(sigma = c(0.02, 0.04, 0.06, 0.08, 0.1,  0.5, 0.9),
+                                            C = c(0.3, 0.5, 0.75, 0.9, 1, 1.2, 1.5, 2 )))
+svmPred2 <- predict(model.ksvm2, newdata=testSet, type = "raw")
+#display accuracy of predictions svmRadial .795 svmPoly .789, svmLinear, svmLinearWeights ~.734
+cm2<-confusionMatrix(svmPred2,reference = testSet$bluff)
+cm2
+plot(model.ksvm2)
+```
+The plot above shows how tuning can effect accuracy. Default tuning does a fine job in this case. 79.5% accuracy is enough that a player could make more informed decisions.
+
+Next to build a model with what minimal information a player might know preflop, no knowledge of bets/raises, and after rerunning models this model performed the best. It predicts bluff using Gogo's hand, whether there is a flop and if people are folding. (no betting data)
+
+```{r}
+
+model.ksvm3 <- train(bluff~Godds+Flop+preFolds, data=trainSet, method="svmRadial"
+                     , preProc=c("center","scale")
+                     , trControl = train_control)
+svmPred3 <- predict(model.ksvm3, newdata=testSet, type = "raw")
+#display accuracy of predictions svmRadial .734, which is actually midly affected by tuning:
+cm3<-confusionMatrix(svmPred3,reference = testSet$bluff)
+cm3
+```
+With such little information the model above hits a low accuracy of 73%.
+
+Other analysis SVM models can do with this data is compare how a given player is doing during a bluff win vs a bluff loss (someone else won with a bluff). Below looks at scenarios Pluribus won with a bluff and scenarios Pluribus lost to a bluff. 
+```{r}
+dfPloss <- filter(df2, `Pluribus Win?` == 1)
+df4 <- data.frame(bluff=as.factor(dfPloss$`Bluff?`),PBR=as.numeric(dfPloss$PBetsRaises),OBR=as.numeric(dfPloss$OBetsRaises))
+set.seed(10)
+trainList2 <- createDataPartition(y=df4$bluff,p=.90, list=FALSE) #344-147 int 1:344
+trainSet2 <- df4[trainList2,]
+testSet2 <- df4[-trainList2,]
+
+#df5 <- data.frame(bluff=testSet$bluff,PBR=as.numeric(testSet$PBR),OBR=as.numeric(testSet2$OBR))
+svm_model<- svm(bluff ~ PBR+OBR, 
+                data = trainSet2, 
+                type = "C-classification", 
+                kernel = "radial",
+                cost = 5,
+                scale = FALSE)
+plot(svm_model, df4)
+svmPred <- predict(svm_model, newdata=testSet2, type = "raw")
+#display accuracy of predictions
+confusionMatrix(svmPred, reference = testSet2$bluff)
+dfPloss <- filter(df2, `Pluribus Win?` == 0)
+df4 <- data.frame(bluff=as.factor(dfPloss$`Bluff?`),PBR=as.numeric(dfPloss$PBetsRaises),OBR=as.numeric(dfPloss$OBetsRaises))
+set.seed(10)
+trainList2 <- createDataPartition(y=df4$bluff,p=.90, list=FALSE) #344-147 int 1:344
+trainSet2 <- df4[trainList2,]
+testSet2 <- df4[-trainList2,]
+
+#df5 <- data.frame(bluff=testSet$bluff,PBR=as.numeric(testSet$PBR),OBR=as.numeric(testSet2$OBR))
+svm_model<- svm(bluff ~ PBR+OBR, 
+                data = trainSet2, 
+                type = "C-classification", 
+                kernel = "radial",
+                cost = 5,
+                scale = FALSE)
+plot(svm_model, df4)
+svmPred <- predict(svm_model, newdata=testSet2, type = "raw")
+#display accuracy of predictions
+confusionMatrix(svmPred, reference = testSet2$bluff)
+```
+The plots above illustrate areas of Pluribus betting (PBR) against other betting (OBR). First plot shows bluff wins by Pluribus. Here, at the lower left red edge betting between 0-1 is where bluffing wins occurred. This means there were likely very few bluffing by Pluribus when there were lots of bets by anyone. The second plot shows when Pluribus lost to bluffing. This plot shows a new red area where others were winning with bluffs against Pluribus bets. Is Pluribus being taken advantage of here? These models had 75% and 77% accuracy respectively.
+
+
+Finally, Below is a summary of all bluffing SVM models ran, the kernel used and the accuracy for each.
+
+<table class=MsoNormalTable border=0 cellspacing=0 cellpadding=0 width=436
+ style='width:327.0pt;border-collapse:collapse;mso-yfti-tbllook:1184;
+ mso-padding-alt:0in 0in 0in 0in'>
+ <tr style='mso-yfti-irow:0;mso-yfti-firstrow:yes;height:14.75pt'>
+  <td width=303 nowrap valign=top style='width:227.0pt;border:none;border-bottom:
+  solid #8EAADB 1.5pt;background:white;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Model<a name="_heading=h.lvqcb0d7hs1z"></a></span></p>
+  </td>
+  <td width=69 nowrap valign=top style='width:52.0pt;border:none;border-bottom:
+  solid #8EAADB 1.5pt;background:white;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Kernel</span></p>
+  </td>
+  <td width=64 nowrap valign=top style='width:48.0pt;border:none;border-bottom:
+  solid #8EAADB 1.5pt;background:white;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>Accuracy</span></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:1;height:14.75pt'>
+  <td width=303 nowrap valign=top style='width:227.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>bluff~.</span><o:p></o:p></b></p>
+  </td>
+  <td width=69 nowrap valign=top style='width:52.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>svmRadial</span></p>
+  </td>
+  <td width=64 nowrap valign=top style='width:48.0pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal align=right style='margin-bottom:0in;text-align:right;
+  line-height:normal'><span style='color:black'>85%</span></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:2;height:14.75pt'>
+  <td width=303 nowrap valign=top style='width:227.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>bluff~Pot+OBR</span></b></p>
+  </td>
+  <td width=69 nowrap valign=top style='width:52.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>svmRadial</span></p>
+  </td>
+  <td width=64 nowrap valign=top style='width:48.0pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal align=right style='margin-bottom:0in;text-align:right;
+  line-height:normal'><span style='color:black'>77%</span></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:3;height:14.75pt'>
+  <td width=303 nowrap valign=top style='width:227.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>bluff~Podds</span></b></p>
+  </td>
+  <td width=69 nowrap valign=top style='width:52.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>svmRadial</span></p>
+  </td>
+  <td width=64 nowrap valign=top style='width:48.0pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal align=right style='margin-bottom:0in;text-align:right;
+  line-height:normal'><span style='color:black'>73%</span></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:4;height:14.75pt'>
+  <td width=303 nowrap valign=top style='width:227.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>bluff~Podds+Flop</span></b></p>
+  </td>
+  <td width=69 nowrap valign=top style='width:52.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>svmRadial</span></p>
+  </td>
+  <td width=64 nowrap valign=top style='width:48.0pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal align=right style='margin-bottom:0in;text-align:right;
+  line-height:normal'><span style='color:black'>73%</span></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:5;height:14.75pt'>
+  <td width=303 nowrap valign=top style='width:227.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>bluff~Podds+Pot+OBR</span></b></p>
+  </td>
+  <td width=69 nowrap valign=top style='width:52.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>svmRadial</span></p>
+  </td>
+  <td width=64 nowrap valign=top style='width:48.0pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal align=right style='margin-bottom:0in;text-align:right;
+  line-height:normal'><span style='color:black'>78%</span></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:6;height:14.75pt'>
+  <td width=303 nowrap valign=top style='width:227.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>bluff~Podds+OBR</span></b></p>
+  </td>
+  <td width=69 nowrap valign=top style='width:52.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>svmRadial</span></p>
+  </td>
+  <td width=64 nowrap valign=top style='width:48.0pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal align=right style='margin-bottom:0in;text-align:right;
+  line-height:normal'><span style='color:black'>78%</span></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:7;height:14.75pt'>
+  <td width=303 nowrap valign=top style='width:227.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>bluff~Podds+OBR+PBR</span></b></p>
+  </td>
+  <td width=69 nowrap valign=top style='width:52.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>svmRadial</span></p>
+  </td>
+  <td width=64 nowrap valign=top style='width:48.0pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal align=right style='margin-bottom:0in;text-align:right;
+  line-height:normal'><span style='color:black'>77%</span></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:8;height:14.75pt'>
+  <td width=303 nowrap valign=top style='width:227.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>bluff~Podds+PBR+GBR+MrWBR+BuBR+EBR+BIBR</span></b></p>
+  </td>
+  <td width=69 nowrap valign=top style='width:52.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>svmRadial</span></p>
+  </td>
+  <td width=64 nowrap valign=top style='width:48.0pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal align=right style='margin-bottom:0in;text-align:right;
+  line-height:normal'><span style='color:black'>79%</span></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:9;height:14.75pt'>
+  <td width=303 nowrap valign=top style='width:227.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>bluff~Godds+PBR+GBR+MrWBR+BuBR+EBR+BIBR</span></b></p>
+  </td>
+  <td width=69 nowrap valign=top style='width:52.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>svmRadial</span></p>
+  </td>
+  <td width=64 nowrap valign=top style='width:48.0pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal align=right style='margin-bottom:0in;text-align:right;
+  line-height:normal'><span style='color:black'>81%</span></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:10;height:14.75pt'>
+  <td width=303 nowrap valign=top style='width:227.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>bluff~Godds+Bets</span></b></p>
+  </td>
+  <td width=69 nowrap valign=top style='width:52.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>svmRadial</span></p>
+  </td>
+  <td width=64 nowrap valign=top style='width:48.0pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal align=right style='margin-bottom:0in;text-align:right;
+  line-height:normal'><span style='color:black'>79%</span></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:11;height:14.75pt'>
+  <td width=303 nowrap valign=top style='width:227.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>bluff~Godds+Bets</span></b></p>
+  </td>
+  <td width=69 nowrap valign=top style='width:52.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>svmPoly</span></p>
+  </td>
+  <td width=64 nowrap valign=top style='width:48.0pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal align=right style='margin-bottom:0in;text-align:right;
+  line-height:normal'><span style='color:black'>78%</span></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:12;height:14.75pt'>
+  <td width=303 nowrap valign=top style='width:227.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>bluff~Godds+Bets</span></b></p>
+  </td>
+  <td width=69 nowrap valign=top style='width:52.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>svmLinear,</span></p>
+  </td>
+  <td width=64 nowrap valign=top style='width:48.0pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal align=right style='margin-bottom:0in;text-align:right;
+  line-height:normal'><span style='color:black'>73%</span></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:13;height:14.75pt'>
+  <td width=303 nowrap valign=top style='width:227.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>bluff~Bets</span></b></p>
+  </td>
+  <td width=69 nowrap valign=top style='width:52.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>svmRadial</span></p>
+  </td>
+  <td width=64 nowrap valign=top style='width:48.0pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal align=right style='margin-bottom:0in;text-align:right;
+  line-height:normal'><span style='color:black'>79%</span></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:14;height:14.75pt'>
+  <td width=303 nowrap valign=top style='width:227.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>bluff~Podds+Bets</span></b></p>
+  </td>
+  <td width=69 nowrap valign=top style='width:52.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>svmRadial</span></p>
+  </td>
+  <td width=64 nowrap valign=top style='width:48.0pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal align=right style='margin-bottom:0in;text-align:right;
+  line-height:normal'><span style='color:black'>78%</span></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:15;height:14.75pt'>
+  <td width=303 nowrap valign=top style='width:227.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>bluff~Godds+Flop+Pot+preFolds</span></b></p>
+  </td>
+  <td width=69 nowrap valign=top style='width:52.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>svmRadial</span></p>
+  </td>
+  <td width=64 nowrap valign=top style='width:48.0pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal align=right style='margin-bottom:0in;text-align:right;
+  line-height:normal'><span style='color:black'>73%</span></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:16;height:14.75pt'>
+  <td width=303 nowrap valign=top style='width:227.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>bluff~Godds</span></b></p>
+  </td>
+  <td width=69 nowrap valign=top style='width:52.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>svmRadial</span></p>
+  </td>
+  <td width=64 nowrap valign=top style='width:48.0pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal align=right style='margin-bottom:0in;text-align:right;
+  line-height:normal'><span style='color:black'>73%</span></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:17;height:14.75pt'>
+  <td width=303 nowrap valign=top style='width:227.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>bluff~PBR+OBR (P won)</span></b></p>
+  </td>
+  <td width=69 nowrap valign=top style='width:52.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>svmRadial</span></p>
+  </td>
+  <td width=64 nowrap valign=top style='width:48.0pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;background:#D9E2F3;padding:0in 5.4pt 0in 5.4pt;
+  height:14.75pt'>
+  <p class=MsoNormal align=right style='margin-bottom:0in;text-align:right;
+  line-height:normal'><span style='color:black'>75%</span></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:18;mso-yfti-lastrow:yes;height:14.75pt'>
+  <td width=303 nowrap valign=top style='width:227.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><b><span
+  style='color:black'>bluff~PBR+OBR (P lost)</span></b></p>
+  </td>
+  <td width=69 nowrap valign=top style='width:52.0pt;border-top:none;
+  border-left:none;border-bottom:solid #8EAADB 1.0pt;border-right:solid #8EAADB 1.0pt;
+  padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal style='margin-bottom:0in;line-height:normal'><span
+  style='color:black'>svmRadial</span></p>
+  </td>
+  <td width=64 nowrap valign=top style='width:48.0pt;border:none;border-bottom:
+  solid #8EAADB 1.0pt;padding:0in 5.4pt 0in 5.4pt;height:14.75pt'>
+  <p class=MsoNormal align=right style='margin-bottom:0in;text-align:right;
+  line-height:normal'><span style='color:black'>77%</span></p>
+  </td>
+ </tr>
+</table>
+
+## Random Forest
+
+### Predicting Pluribus' Bluff
+
+```{r}
+#select columns for model and create a factor
+pluribusBluffDf <- data.frame(PBluff=df$PBluff, 
+                  Pot=df$Pot, 
+                  Flop=df$HasFlop,
+                  Blind=df$HasBlind,
+                  Odds = df$POdds,
+                  PreFolds = df$PreFolds,
+                  OBR = df$OBetsRaises)
+
+trainList <- createDataPartition(y=pluribusBluffDf$PBluff,p=.70, list=FALSE)
+trainSet <- pluribusBluffDf[trainList,]
+testSet <- pluribusBluffDf[-trainList,]
+prfm <- randomForest(PBluff~., data=trainSet, ntree=10)
+print(prfm)
+```
+
+```{r}
+pRF <- predict(prfm, testSet, type=c("class"))
+confusionMatrix(pRF,reference = testSet$PBluff)
+```
+
+While this model performed with high accuracy, it was very bad at actually predicting the bluff. Much of this error is likely due to the nature of the sample data - Pluribus (and players in this data set in general) did not bluff particularly often. There is possibility for better results to be obtained through tuning. 
+
+```{r}
+var_imp <- varImp(prfm)
+
+# Plot the feature importance
+ggplot(var_imp, aes(x = reorder(rownames(var_imp), -Overall), y = Overall)) + 
+  geom_bar(stat = "identity", fill = "blue") +
+  coord_flip() +
+  labs(title = "Variable Importance Plot") +
+  xlab("Features") +
+  ylab("Importance")
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+rm(testSet, trainList, trainSet)
+```
+
+Given the massive importance the model placed on Odds seems likely to be "cheating" as any odds over 20% are automatically not considered a bluff. This will be filtered to more appropriately factor for those odds. In a real environment, another player would not know your odds, and this would not be a practical indicator of how to know if someone is bluffing. On the other hand, it could provide some insight as to what kinds of hands may be the best to bluff with. Beyond this, the model itself will be tuned with slightly different parameters, including weighting the bluffed hands to appear more often in a cross validation approach to model training to attempt to build a more robust model for detecting bluffs.
+
+```{r}
+pluribusBluffDf <- data.frame(PBluff=df$PBluff, 
+                  Pot=df$Pot, 
+                  Flop=df$HasFlop,
+                  Blind=df$HasBlind,
+                  Odds = df$POdds,
+                  PreFolds = df$PreFolds,
+                  OBR = df$OBetsRaises)
+
+pluribusBluffDf <- pluribusBluffDf %>% filter(Odds <= .2)
+
+pluribusBluffDf <- pluribusBluffDf %>% mutate_if(is.factor,as.integer)
+glimpse(pluribusBluffDf)
+```
+
+```{r}
+x <- pluribusBluffDf[, -1]
+pluribusBluffDf$PBluff <- factor(pluribusBluffDf$PBluff)
+levels(pluribusBluffDf$PBluff) <- make.names(levels(pluribusBluffDf$PBluff))
+y <- pluribusBluffDf$PBluff
+
+train_control <- trainControl(
+  method = 'cv',
+  number = 10,
+  classProbs = TRUE, 
+  sampling = 'down',
+  )
+
+# Define the class weights
+classWeights <- c(1, 5)
+
+pluribusRFTune <- train(
+  x = x,
+  y = y,
+  method = "rf",
+  metric = "Accuracy",
+  trControl = train_control,
+  weights = ifelse(y == 'X1', classWeights[1], classWeights[2])
+  )
+pluribusRFTune
+```
+
+```{r}
+pRF <- predict(pluribusRFTune, pluribusBluffDf, type=c("raw"))
+confusionMatrix(pRF,reference = y)
+```
+```{r}
+var_imp <- varImp(pluribusRFTune)
+
+# Plot the feature importance
+ggplot(var_imp, aes(x = reorder(rownames(var_imp), -Overall), y = Overall)) + 
+  geom_bar(stat = "identity", fill = "blue") +
+  coord_flip() +
+  labs(title = "Variable Importance Plot") +
+  xlab("Features") +
+  ylab("Importance")
+```
+Unfortunately, this model performed worse than the first. The importance of PreFolds and whether or not Pluribus had the flop dropped out entirely. These columns will be dropped in an attempt to thwart any negative affects the added dimensionality of these columns had on the model. It is encouraging to see that odds still play a role after adjusting accordingly. It should be noted that there is a possibility that the first model only performed better because the test data provided such a small sample of bluffed hands to predict. It is likely that this model is more true to reality.
+
+```{r}
+pluribusBluffDf <- data.frame(PBluff=df$PBluff, 
+                  Pot=df$Pot, 
+                  Blind=df$HasBlind,
+                  Odds = df$POdds,
+                  OBR = df$OBetsRaises)
+
+pluribusBluffDf <- pluribusBluffDf %>% filter(Odds <= .2)
+
+pluribusBluffDf <- pluribusBluffDf %>% mutate_if(is.factor,as.integer)
+```
+
+```{r}
+x <- pluribusBluffDf[, -1]
+pluribusBluffDf$PBluff <- factor(pluribusBluffDf$PBluff)
+levels(pluribusBluffDf$PBluff) <- make.names(levels(pluribusBluffDf$PBluff))
+y <- pluribusBluffDf$PBluff
+
+pluribusRFTune <- train(
+  x = x,
+  y = y,
+  method = "rf",
+  metric = "Accuracy",
+  trControl = train_control,
+  weights = ifelse(y == 'X1', classWeights[1], classWeights[2])
+  )
+pluribusRFTune
+```
+
+```{r}
+pRF <- predict(pluribusRFTune, pluribusBluffDf, type=c("raw"))
+confusionMatrix(pRF,reference = y)
+```
+
+```{r}
+var_imp <- varImp(pluribusRFTune)
+
+# Plot the feature importance
+ggplot(var_imp, aes(x = reorder(rownames(var_imp), -Overall), y = Overall)) + 
+  geom_bar(stat = "identity", fill = "blue") +
+  coord_flip() +
+  labs(title = "Variable Importance Plot") +
+  xlab("Features") +
+  ylab("Importance")
+```
+
+Further, accuracy was lost and this model was even worse at predicting the bluff. The blind column additionally lost all importance. It will now be dropped. 
+
+```{r}
+pluribusBluffDf <- data.frame(PBluff=df$PBluff, 
+                  Pot=df$Pot, 
+                  Odds = df$POdds,
+                  OBR = df$OBetsRaises)
+
+pluribusBluffDf <- pluribusBluffDf %>% filter(Odds <= .2)
+
+pluribusBluffDf <- pluribusBluffDf %>% mutate_if(is.factor,as.integer)
+```
+
+```{r}
+x <- pluribusBluffDf[, -1]
+pluribusBluffDf$PBluff <- factor(pluribusBluffDf$PBluff)
+levels(pluribusBluffDf$PBluff) <- make.names(levels(pluribusBluffDf$PBluff))
+y <- pluribusBluffDf$PBluff
+
+pluribusRFTune <- train(
+  x = x,
+  y = y,
+  method = "rf",
+  metric = "Accuracy",
+  trControl = train_control,
+  weights = ifelse(y == 'X1', classWeights[1], classWeights[2])
+  )
+pluribusRFTune
+```
+
+```{r}
+pRF <- predict(pluribusRFTune, pluribusBluffDf, type=c("raw"))
+confusionMatrix(pRF,reference = y)
+```
+
+```{r}
+var_imp <- varImp(pluribusRFTune)
+
+# Plot the feature importance
+ggplot(var_imp, aes(x = reorder(rownames(var_imp), -Overall), y = Overall)) + 
+  geom_bar(stat = "identity", fill = "blue") +
+  coord_flip() +
+  labs(title = "Variable Importance Plot") +
+  xlab("Features") +
+  ylab("Importance")
+```
+
+This model had identical results. But the pot's importance dropped out entirely. This seems to be counter-intuitive to a typical player's mentality. It seems the best model of the random forests would be the first option. This technique will be employed across all players.
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+rm(prfm, var_imp, pRF, pluribusBluffDf)
+```
+
+### Predicting Gogo's Bluff
+
+```{r}
+gogoBluffDf <- data.frame(GBluff=df$GBluff, 
+                  Pot=df$Pot, 
+                  Flop=df$HasFlop,
+                  Blind=df$HasBlind,
+                  Odds = df$POdds,
+                  PreFolds = df$PreFolds,
+                  PBR = df$PBetsRaises, 
+                  MBR = df$MrWBetsRaises, 
+                  BuBR = df$BuBetsRaises, 
+                  EBR = df$EBetsRaises, 
+                  BiBR = df$BiBetsRaises)
+
+gogoBluffDf <- gogoBluffDf %>% filter(Odds <= .2)
+
+gogoBluffDf <- gogoBluffDf %>% mutate_if(is.factor,as.integer)
+```
+
+```{r}
+x <- gogoBluffDf[, -1]
+gogoBluffDf$GBluff <- factor(gogoBluffDf$GBluff)
+levels(gogoBluffDf$GBluff) <- make.names(levels(gogoBluffDf$GBluff))
+y <- gogoBluffDf$GBluff
+
+gogoRFTune <- train(
+  x = x,
+  y = y,
+  method = "rf",
+  metric = "Accuracy",
+  trControl = train_control,
+  weights = ifelse(y == 'X1', classWeights[1], classWeights[2])
+  )
+gogoRFTune
+```
+
+```{r}
+gRF <- predict(gogoRFTune, gogoBluffDf, type=c("raw"))
+confusionMatrix(gRF,reference = y)
+```
+
+```{r}
+var_imp <- varImp(gogoRFTune)
+
+# Plot the feature importance
+ggplot(var_imp, aes(x = reorder(rownames(var_imp), -Overall), y = Overall)) + 
+  geom_bar(stat = "identity", fill = "blue") +
+  coord_flip() +
+  labs(title = "Variable Importance Plot") +
+  xlab("Features") +
+  ylab("Importance")
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+rm(gogoBluffDf, gRF)
+```
+
+### Predicting MrWhite's Bluffs
+
+```{r}
+mrwBluffDf <- data.frame(MBluff=df$MrWBluff, 
+                  Pot=df$Pot, 
+                  Flop=df$HasFlop,
+                  Blind=df$HasBlind,
+                  Odds = df$POdds,
+                  PreFolds = df$PreFolds,
+                  PBR = df$PBetsRaises, 
+                  GBR = df$GBetsRaises, 
+                  BuBR = df$BuBetsRaises, 
+                  EBR = df$EBetsRaises, 
+                  BiBR = df$BiBetsRaises)
+
+mrwBluffDf <- mrwBluffDf %>% filter(Odds <= .2)
+
+mrwBluffDf <- mrwBluffDf %>% mutate_if(is.factor,as.integer)
+```
+
+```{r}
+x <- mrwBluffDf[, -1]
+mrwBluffDf$MBluff <- factor(mrwBluffDf$MBluff)
+levels(mrwBluffDf$MBluff) <- make.names(levels(mrwBluffDf$MBluff))
+y <- mrwBluffDf$MBluff
+
+mrwRFTune <- train(
+  x = x,
+  y = y,
+  method = "rf",
+  metric = "Accuracy",
+  trControl = train_control,
+  weights = ifelse(y == 'X1', classWeights[1], classWeights[2])
+  )
+mrwRFTune
+```
+
+```{r}
+mRF <- predict(mrwRFTune, mrwBluffDf, type=c("raw"))
+confusionMatrix(mRF,reference = y)
+```
+
+```{r}
+var_imp <- varImp(mrwRFTune)
+
+# Plot the feature importance
+ggplot(var_imp, aes(x = reorder(rownames(var_imp), -Overall), y = Overall)) + 
+  geom_bar(stat = "identity", fill = "blue") +
+  coord_flip() +
+  labs(title = "Variable Importance Plot") +
+  xlab("Features") +
+  ylab("Importance")
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+rm(mrwBluffDf, mRF)
+```
+
+### Predicting Budd's Bluff
+
+```{r}
+buBluffDf <- data.frame(BBluff=df$BuBluff, 
+                  Pot=df$Pot, 
+                  Flop=df$HasFlop,
+                  Blind=df$HasBlind,
+                  Odds = df$POdds,
+                  PreFolds = df$PreFolds,
+                  PBR = df$PBetsRaises, 
+                  MBR = df$MrWBetsRaises, 
+                  GBR = df$GBetsRaises, 
+                  EBR = df$EBetsRaises, 
+                  BiBR = df$BiBetsRaises)
+
+buBluffDf <- buBluffDf %>% filter(Odds <= .2)
+
+buBluffDf <- buBluffDf %>% mutate_if(is.factor,as.integer)
+```
+
+```{r}
+x <- buBluffDf[, -1]
+buBluffDf$BBluff <- factor(buBluffDf$BBluff)
+levels(buBluffDf$BBluff) <- make.names(levels(buBluffDf$BBluff))
+y <- buBluffDf$BBluff
+
+buRFTune <- train(
+  x = x,
+  y = y,
+  method = "rf",
+  metric = "Accuracy",
+  trControl = train_control,
+  weights = ifelse(y == 'X1', classWeights[1], classWeights[2])
+  )
+buRFTune
+```
+
+```{r}
+bRF <- predict(buRFTune, buBluffDf, type=c("raw"))
+confusionMatrix(bRF,reference = y)
+```
+
+```{r}
+var_imp <- varImp(buRFTune)
+
+# Plot the feature importance
+ggplot(var_imp, aes(x = reorder(rownames(var_imp), -Overall), y = Overall)) + 
+  geom_bar(stat = "identity", fill = "blue") +
+  coord_flip() +
+  labs(title = "Variable Importance Plot") +
+  xlab("Features") +
+  ylab("Importance")
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+rm(buBluffDf, bRF)
+```
+
+### Predicting Eddie's Bluff
+
+```{r}
+edBluffDf <- data.frame(EBluff=df$EBluff, 
+                  Pot=df$Pot, 
+                  Flop=df$HasFlop,
+                  Blind=df$HasBlind,
+                  Odds = df$POdds,
+                  PreFolds = df$PreFolds,
+                  PBR = df$PBetsRaises, 
+                  MBR = df$MrWBetsRaises, 
+                  BuBR = df$BuBetsRaises, 
+                  GBR = df$GBetsRaises, 
+                  BiBR = df$BiBetsRaises)
+
+edBluffDf <- edBluffDf %>% filter(Odds <= .2)
+
+edBluffDf <- edBluffDf %>% mutate_if(is.factor,as.integer)
+```
+
+```{r}
+x <- edBluffDf[, -1]
+edBluffDf$EBluff <- factor(edBluffDf$EBluff)
+levels(edBluffDf$EBluff) <- make.names(levels(edBluffDf$EBluff))
+y <- edBluffDf$EBluff
+
+edRFTune <- train(
+  x = x,
+  y = y,
+  method = "rf",
+  metric = "Accuracy",
+  trControl = train_control,
+  weights = ifelse(y == 'X1', classWeights[1], classWeights[2])
+  )
+edRFTune
+```
+
+```{r}
+eRF <- predict(edRFTune, edBluffDf, type=c("raw"))
+confusionMatrix(eRF,reference = y)
+```
+
+```{r}
+var_imp <- varImp(edRFTune)
+
+# Plot the feature importance
+ggplot(var_imp, aes(x = reorder(rownames(var_imp), -Overall), y = Overall)) + 
+  geom_bar(stat = "identity", fill = "blue") +
+  coord_flip() +
+  labs(title = "Variable Importance Plot") +
+  xlab("Features") +
+  ylab("Importance")
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+rm(edBluffDf, eRF)
+```
+
+### Predicting Bill's Bluff
+
+```{r}
+biBluffDf <- data.frame(BBluff=df$BiBluff, 
+                  Pot=df$Pot, 
+                  Flop=df$HasFlop,
+                  Blind=df$HasBlind,
+                  Odds = df$POdds,
+                  PreFolds = df$PreFolds,
+                  PBR = df$PBetsRaises, 
+                  MBR = df$MrWBetsRaises, 
+                  GBR = df$GBetsRaises, 
+                  EBR = df$EBetsRaises, 
+                  BuBR = df$BuBetsRaises)
+
+biBluffDf <- biBluffDf %>% filter(Odds <= .2)
+
+biBluffDf <- biBluffDf %>% mutate_if(is.factor,as.integer)
+```
+
+```{r}
+x <- biBluffDf[, -1]
+biBluffDf$BBluff <- factor(biBluffDf$BBluff)
+levels(biBluffDf$BBluff) <- make.names(levels(biBluffDf$BBluff))
+y <- biBluffDf$BBluff
+
+biRFTune <- train(
+  x = x,
+  y = y,
+  method = "rf",
+  metric = "Accuracy",
+  trControl = train_control,
+  weights = ifelse(y == 'X1', classWeights[1], classWeights[2])
+  )
+biRFTune
+```
+
+```{r}
+bRF <- predict(biRFTune, biBluffDf, type=c("raw"))
+confusionMatrix(bRF,reference = y)
+```
+
+```{r}
+var_imp <- varImp(biRFTune)
+
+# Plot the feature importance
+ggplot(var_imp, aes(x = reorder(rownames(var_imp), -Overall), y = Overall)) + 
+  geom_bar(stat = "identity", fill = "blue") +
+  coord_flip() +
+  labs(title = "Variable Importance Plot") +
+  xlab("Features") +
+  ylab("Importance")
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+rm(biBluffDf, bRF, x, y, classWeights, var_imp)
+```
+
+### Results of Random Forests
+While general accuracy was decent across every model, among these players, it is usually better to just assume that they are not bluffing than to try to guess their bluff. In every instance, the "no information rate" of the model performs better than the model's accuracy. This is unfortunate, but it highlights the unpredictability of people. Along these lines, it is interesting to see how some human players are slightly more predictable than others - Gogo has a slightly more identifiable pattern as her model has an accuracy score 5-10% better at predicting her bluff than other players. This is particularly noteworthy as, given the relative frequency with which she bluffs, this is an unexpected result. Similarly, it is interesting, though perhaps expected, to see that Pluribus is the most predictable player in the game with its model accuracy scoring well above even Gogo's model.
+
+While it is disappointing that these models were not able to identify more definitive tells in the gameplay around bluffing, some interesting insights may be drawn from the variable importance plots of each model. Notably, the human players are more inclined to bet to try to "buy" a big pot. Intriguingly, Pluribus is not that sentimental about the pot and is more willing to let it go. A word of caution about over-interpreting this however - there is likely an inevitable feedback loop between bluffing and pot size. Namely, if a person folds instead of bluffing, naturally the pot will be smaller as well. Nonetheless, if there are any potentially predictive insights a player can make from the game about whether or not someone is bluffing are probably to be found while considering the size of the pot.
+
+Finally, from a player's perspective, it is interesting to see that, even after removing odds greater than 20% from the data, odds remains a major contributor for whether or not someone bluffs, including Pluribus. As seen in the boxplot above, it seems that the models confirm that bluffing while there is a path to victory is still the preferred strategy for players.
+
+#Conclusion
+
+Basic stats, correlation analysis, and association rules can certainly inform players on how bluffing is impacting the games they play and what strategy they should adopt. This data tells players who the big bluffers are at a table - namely, Gogo followed by Bill and then Pluribus. Correlation analysis above shows that bluffs are often when players are folding before the flop and it shows which players betting action lean toward or against bluffing. The association rules gives players even more specific clues about these scenarios when bluffing is occurring down to certain players battling with bets and the size of the POT being within a given range.
+
+Modeling including SVM and Random Forest techniques provide prediction of actual strategic recommendations on bluffing. Output of the models show that with enough data fed in players can know with 75%-85% accuracy that someone is bluffing. By plotting these models players can actually see the scenarios they are losing to or winning from bluffing. As displayed in the SVM models, players could identify winning opportunities to bluff against Pluribus. Unfortunately, against these players in particular, trying to detect their bluff was more of a challenge. Against these particular players, it is best to just assume they are not bluffing and play to your own odds. 
+
+Ideally, follow up analysis would examine a deeper pool of games that would include more examples of bluffed games. Given the relatively small pool of bluffs in these series of hands, definitive insights may be limited by the amount of data. Additionally, it would be helpful to examine a wider range of players as well. If additional insights are to be gained through detecting bluffs or identifying successful bluffing strategies, it would be nice to know how well they generalize to other players in other settings. 
+
+Bluff analysis like this is useful to poker players for improving their own skills. They can see performance stats to know how much they should bluff and even, with the right algorithms, predict when a game could include a bluff. Indicators like their hand, flop, pot size, table size and who is the blind can inform players when bluffing is more common. Looking at the results, it is a real advantage players can have to hone in their knowledge of bluffing via data science. Imagine how powerful a future poker software can be that reads all the available data about the game and other players tendencies to suggest if they should fold or raise. With the advancement of machine learning and AI, the future for games of skill may need vast countering of AI algorithms and more thorough cheat detection. 
